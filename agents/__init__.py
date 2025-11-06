@@ -8,9 +8,11 @@ from .arbitrage_hunter import ArbitrageHunter
 from .news_sentiment_trader import NewsSentimentTrader
 from .whale_follower import WhaleFollower
 from .scalper import Scalper
+from .llm_agent import LlmDecisionAgent
+from .manager_agent import ManagerAgent
 
 __all__ = [
     'YOLOAgent', 'ValueHunter', 'MomentumChaser', 'Contrarian', 'Diversifier',
     'NeuralPredictor', 'ArbitrageHunter', 'NewsSentimentTrader', 
-    'WhaleFollower', 'Scalper'
+    'WhaleFollower', 'Scalper', 'LlmDecisionAgent', 'ManagerAgent'
 ]

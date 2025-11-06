@@ -69,6 +69,13 @@ A collection of AI agents that autonomously trade on Polymarket with different s
     - Bet size: 15% per trade but high frequency
     - Risk level: Medium (many small bets)
 
+11. **LLM Decision Agent** 🤖
+    - Strategy: Delegates market analysis to an Ollama-hosted language model
+    - Consumes market snapshots and returns JSON trading instructions
+    - Configurable model, temperature, and minimum confidence thresholds
+    - Bet size: Uses LLM-suggested percentage capped between 1% and 90%
+    - Risk level: Depends on chosen model and prompt tuning
+
 ## 🚀 Setup
 
 1. Create and activate a virtual environment:
@@ -98,7 +105,12 @@ Edit `.env` and add:
 - `POLYGON_RPC_URL`: Polygon RPC endpoint (default: https://polygon-rpc.com)
 - `POLY_API_KEY`, `POLY_API_SECRET`, `POLY_API_PASSPHRASE`: Level-2 Polymarket CLOB API credentials. These are required to actually submit orders; without them the agents will remain in read-only mode. You can create/derive these keys from the Polymarket dashboard or via the official py-clob-client tooling (see [Polymarket docs](https://docs.polymarket.com/)).
 
-4. Fund your wallet:
+4. (Optional) Enable the LLM agent:
+   - Install [Ollama](https://ollama.com/) locally and run `ollama pull llama3.1` (or any supported model)
+   - Set `OLLAMA_MODEL` in `.env` along with optional `OLLAMA_HOST`, `OLLAMA_TIMEOUT`, `OLLAMA_TEMPERATURE`, `OLLAMA_BET_PCT`, `OLLAMA_MIN_CONFIDENCE`, `OLLAMA_MAX_TOKENS`
+   - Start the Ollama server (`ollama serve`) so the agent can reach `http://localhost:11434`
+
+5. Fund your wallet:
    - Make sure your Ethereum address has USDC on Polygon network
    - Agents work with ANY amount (default $10 each, but $1-5 works fine)
    - Total needed = (number of agents) × (amount per agent)
@@ -177,5 +189,6 @@ Add it to `agents/__init__.py` and include it in `run_agents.py`.
 - All transactions are logged for audit purposes
 - Results are saved with timestamp for tracking performance over time
 - If the Polymarket API credentials are missing or invalid, the agents will log a warning and skip order placement while still evaluating markets.
+- The LLM Decision Agent requires a reachable Ollama instance and an `OLLAMA_MODEL`; otherwise it is skipped automatically.
 
 Good luck and may the odds be ever in your favor! 🍀

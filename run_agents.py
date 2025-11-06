@@ -8,8 +8,8 @@ from datetime import datetime
 
 from agents import (
     YOLOAgent, ValueHunter, MomentumChaser, Contrarian, Diversifier,
-    NeuralPredictor, ArbitrageHunter, NewsSentimentTrader, 
-    WhaleFollower, Scalper
+    NeuralPredictor, ArbitrageHunter, NewsSentimentTrader,
+    WhaleFollower, Scalper, LlmDecisionAgent, ManagerAgent
 )
 
 def run_single_agent(agent, max_iterations=50, sleep_time=30):
@@ -41,8 +41,8 @@ def main():
     print()
     print("Select agents to deploy:")
     print("1. Original 5 agents (YOLO, Value, Momentum, Contrarian, Diversifier)")
-    print("2. New Advanced 5 agents (Neural, Arbitrage, Sentiment, Whale, Scalper)")
-    print("3. All 10 agents (Warning: Resource intensive!)")
+    print("2. Advanced AI agents (Neural, Arbitrage, Sentiment, Whale, Scalper, LLM, Manager)")
+    print("3. All agents (Warning: Resource intensive!)")
     print("4. Custom selection")
     
     choice = input("Enter choice (1-4, default 2): ") or "2"
@@ -61,7 +61,9 @@ def main():
             ArbitrageHunter(initial_balance=initial_balance),
             NewsSentimentTrader(initial_balance=initial_balance),
             WhaleFollower(initial_balance=initial_balance),
-            Scalper(initial_balance=initial_balance)
+            Scalper(initial_balance=initial_balance),
+            LlmDecisionAgent(initial_balance=initial_balance),
+            ManagerAgent(initial_balance=initial_balance)
         ]
     elif choice == "3":
         agents = [
@@ -74,7 +76,9 @@ def main():
             ArbitrageHunter(initial_balance=initial_balance),
             NewsSentimentTrader(initial_balance=initial_balance),
             WhaleFollower(initial_balance=initial_balance),
-            Scalper(initial_balance=initial_balance)
+            Scalper(initial_balance=initial_balance),
+            LlmDecisionAgent(initial_balance=initial_balance),
+            ManagerAgent(initial_balance=initial_balance)
         ]
     else:
         print("\nAvailable agents:")
@@ -88,7 +92,9 @@ def main():
             ("7", "ArbitrageHunter", ArbitrageHunter),
             ("8", "NewsSentimentTrader", NewsSentimentTrader),
             ("9", "WhaleFollower", WhaleFollower),
-            ("10", "Scalper", Scalper)
+            ("10", "Scalper", Scalper),
+            ("11", "LlmDecisionAgent", LlmDecisionAgent),
+            ("12", "ManagerAgent", ManagerAgent)
         ]
         
         for num, name, _ in available:
@@ -101,7 +107,7 @@ def main():
             sel = sel.strip()
             for num, name, agent_class in available:
                 if num == sel:
-                    if agent_class in [NeuralPredictor, ArbitrageHunter, NewsSentimentTrader, WhaleFollower, Scalper]:
+                    if agent_class in [NeuralPredictor, ArbitrageHunter, NewsSentimentTrader, WhaleFollower, Scalper, LlmDecisionAgent, ManagerAgent]:
                         agents.append(agent_class(initial_balance=initial_balance))
                     else:
                         agents.append(agent_class(initial_balance))
