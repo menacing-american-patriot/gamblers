@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-11-05T16:27:27.683767",
+  "total_initial": 2.5,
+  "total_final": 2.5,
+  "total_profit": 0.0,
+  "total_roi": 0.0,
+  "agents": [
+    {
+      "name": "NewsSentimentTrader",
+      "initial_balance": 0.5,
+      "current_balance": 0.5,
+      "profit": 0.0,
+      "roi": 0.0,
+      "trades_made": 0,
+      "winning_trades": 0,
+      "losing_trades": 0
+    },
+    {
+      "name": "ArbitrageHunter",
+      "initial_balance": 0.5,
+      "current_balance": 0.5,
+      "profit": 0.0,
+      "roi": 0.0,
+      "trades_made": 0,
+      "winning_trades": 0,
+      "losing_trades": 0
+    },
+    {
+      "name": "Scalper",
+      "initial_balance": 0.5,
+      "current_balance": 0.5,
+      "profit": 0.0,
+      "roi": 0.0,
+      "trades_made": 0,
+      "winning_trades": 0,
+      "losing_trades": 0
+    },
+    {
+      "name": "WhaleFollower",
+      "initial_balance": 0.5,
+      "current_balance": 0.5,
+      "profit": 0.0,
+      "roi": 0.0,
+      "trades_made": 0,
+      "winning_trades": 0,
+      "losing_trades": 0
+    },
+    {
+      "name": "NeuralPredictor",
+      "initial_balance": 0.5,
+      "current_balance": 0.5,
+      "profit": 0.0,
+      "roi": 0.0,
+      "trades_made": 0,
+      "winning_trades": 0,
+      "losing_trades": 0
+    }
+  ]
+}
