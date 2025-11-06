@@ -30,8 +30,9 @@ class YOLOAgent(BaseAgent):
         if not token_id:
             return None
         
-        current_price = self.get_market_price(token_id)
-        if not current_price or current_price <= 0.01 or current_price >= 0.99:
+        # Get price from token data directly (markets don't have order books)
+        current_price = token.get('price', 0)
+        if current_price <= 0.01 or current_price >= 0.99:
             return None
         
         bet_amount = self.current_balance * self.bet_percentage

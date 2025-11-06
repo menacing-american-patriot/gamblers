@@ -71,21 +71,34 @@ A collection of AI agents that autonomously trade on Polymarket with different s
 
 ## 🚀 Setup
 
-1. Install dependencies:
+1. Create and activate a virtual environment:
+```bash
+# Create virtual environment
+python3 -m venv venv
+
+# Activate it (Linux/Mac)
+source venv/bin/activate
+
+# Activate it (Windows)
+# venv\Scripts\activate
+```
+
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Configure your credentials:
+3. Configure your credentials:
 ```bash
 cp .env.example .env
 ```
 
 Edit `.env` and add:
-- `PRIVATE_KEY`: Your Ethereum private key (for signing transactions)
+- `PRIVATE_KEY`: Your Ethereum private key (used for signing orders)
 - `POLYGON_RPC_URL`: Polygon RPC endpoint (default: https://polygon-rpc.com)
+- `POLY_API_KEY`, `POLY_API_SECRET`, `POLY_API_PASSPHRASE`: Level-2 Polymarket CLOB API credentials. These are required to actually submit orders; without them the agents will remain in read-only mode. You can create/derive these keys from the Polymarket dashboard or via the official py-clob-client tooling (see [Polymarket docs](https://docs.polymarket.com/)).
 
-3. Fund your wallet:
+4. Fund your wallet:
    - Make sure your Ethereum address has USDC on Polygon network
    - Agents work with ANY amount (default $10 each, but $1-5 works fine)
    - Total needed = (number of agents) × (amount per agent)
@@ -93,8 +106,14 @@ Edit `.env` and add:
 
 ## 🎮 Usage
 
-Run all agents:
+Make sure your virtual environment is activated, then run:
 ```bash
+# Activate virtual environment first (if not already active)
+source venv/bin/activate  # Linux/Mac
+# or
+# venv\Scripts\activate  # Windows
+
+# Run the agents
 python run_agents.py
 ```
 
@@ -157,5 +176,6 @@ Add it to `agents/__init__.py` and include it in `run_agents.py`.
 - Agents stop when they hit minimum balance or max iterations
 - All transactions are logged for audit purposes
 - Results are saved with timestamp for tracking performance over time
+- If the Polymarket API credentials are missing or invalid, the agents will log a warning and skip order placement while still evaluating markets.
 
 Good luck and may the odds be ever in your favor! 🍀
