@@ -11,8 +11,8 @@ class YOLOAgent(BaseAgent):
     Strategy: Maximum risk, maximum potential reward. Bets big on gut feelings.
     """
     
-    def __init__(self, initial_balance: float = 10.0):
-        super().__init__("YOLO_Agent", initial_balance)
+    def __init__(self, initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__("YOLO_Agent", initial_balance, register_with_portfolio=register_with_portfolio)
         self.min_balance_threshold = 0.5
         self.bet_percentage = 0.3
         
@@ -46,12 +46,13 @@ class YOLOAgent(BaseAgent):
         self.logger.info(f"🎲 YOLO pick: {market.get('question', 'Unknown')[:60]}... | "
                         f"Betting ${bet_amount:.2f} on {side}")
         
-        return {
+        proposal = {
             "token_id": token_id,
             "side": side,
             "amount": bet_amount,
             "price": target_price
         }
+        return self.manage_with_llm(market, proposal, "YOLO Heuristic")
     
     def should_continue(self) -> bool:
         return self.current_balance >= self.min_balance_threshold

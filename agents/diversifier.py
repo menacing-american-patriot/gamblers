@@ -11,8 +11,8 @@ class Diversifier(BaseAgent):
     Strategy: Portfolio approach - minimize risk through diversification.
     """
     
-    def __init__(self, initial_balance: float = 10.0):
-        super().__init__("Diversifier", initial_balance)
+    def __init__(self, initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__("Diversifier", initial_balance, register_with_portfolio=register_with_portfolio)
         self.min_balance_threshold = 0.5
         self.bet_percentage = 0.05
         self.markets_traded: Set[str] = set()
@@ -55,14 +55,15 @@ class Diversifier(BaseAgent):
         self.markets_traded.add(market_id)
         
         self.logger.info(f"🎯 Diversifying: {market.get('question', 'Unknown')[:60]}... | "
-                        f"${bet_amount:.2f} {side} (market {len(self.markets_traded)}/{self.max_markets})")
+                        f"Proposing ${bet_amount:.2f} {side} (market {len(self.markets_traded)}/{self.max_markets})")
         
-        return {
+        proposal = {
             "token_id": token_id,
             "side": side,
             "amount": bet_amount,
             "price": target_price
         }
+        return self.manage_with_llm(market, proposal, "Diversifier")
     
     def should_continue(self) -> bool:
         return (self.current_balance >= self.min_balance_threshold and 

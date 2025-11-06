@@ -17,3 +17,7 @@ class MemoryStore:
         history.append(value)
         if len(history) > limit:
             del history[0:len(history) - limit]
+
+    def snapshot(self, agent_name: str) -> Dict[str, Any]:
+        data = self._store.get(agent_name, {})
+        return dict(data)

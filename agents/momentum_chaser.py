@@ -11,8 +11,8 @@ class MomentumChaser(BaseAgent):
     Strategy: Rides the wave of popular opinion, momentum trading style.
     """
     
-    def __init__(self, initial_balance: float = 10.0):
-        super().__init__("Momentum_Chaser", initial_balance)
+    def __init__(self, initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__("Momentum_Chaser", initial_balance, register_with_portfolio=register_with_portfolio)
         self.min_balance_threshold = 1.0
         self.bet_percentage = 0.2
         self.momentum_threshold = 0.65
@@ -52,14 +52,15 @@ class MomentumChaser(BaseAgent):
             target_price = min(0.99, best_price * 1.03)
             
             self.logger.info(f"📈 Momentum play: {market.get('question', 'Unknown')[:60]}... | "
-                           f"${bet_amount:.2f} BUY @ {target_price:.3f}")
+                           f"Proposing ${bet_amount:.2f} BUY @ {target_price:.3f}")
             
-            return {
+            proposal = {
                 "token_id": best_token_id,
                 "side": "BUY",
                 "amount": bet_amount,
                 "price": target_price
             }
+            return self.manage_with_llm(market, proposal, "Momentum Chaser")
         
         return None
     

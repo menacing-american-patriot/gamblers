@@ -7,9 +7,9 @@ from core.tools import ToolResult, get_tool_signals
 
 
 class LlmDecisionAgent(BaseAgent):
-    def __init__(self, initial_balance: float = 10.0, name: str = None):
+    def __init__(self, initial_balance: float = 10.0, name: str = None, register_with_portfolio: bool = True):
         agent_name = name or os.getenv("OLLAMA_AGENT_NAME", "LLM_Trader")
-        super().__init__(agent_name, initial_balance)
+        super().__init__(agent_name, initial_balance, register_with_portfolio=register_with_portfolio)
         self.min_confidence = float(os.getenv("OLLAMA_MIN_CONFIDENCE", "0.55"))
         self.default_bet_pct = float(os.getenv("OLLAMA_BET_PCT", "0.25"))
         self.max_tokens = int(float(os.getenv("OLLAMA_MAX_TOKENS", "256")))
@@ -47,12 +47,13 @@ class LlmDecisionAgent(BaseAgent):
         self.logger.info(
             f"🤖 LLM decision on {market.get('question', '')[:48]}... side={side} confidence={confidence:.2f}"
         )
-        return {
+        proposal = {
             "token_id": token_id,
             "side": side,
             "amount": amount,
             "price": float(price),
         }
+        return self.manage_with_llm(market, proposal, "LLM Strategy")
 
     def should_continue(self) -> bool:
         return self.current_balance > self.initial_balance * 0.05

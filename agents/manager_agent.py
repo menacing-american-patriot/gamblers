@@ -6,9 +6,9 @@ from core.tools import ToolResult, get_tool_signals
 
 
 class ManagerAgent(BaseAgent):
-    def __init__(self, initial_balance: float = 25.0, name: Optional[str] = None):
+    def __init__(self, initial_balance: float = 25.0, name: Optional[str] = None, register_with_portfolio: bool = True):
         agent_name = name or os.getenv("MANAGER_AGENT_NAME", "ManagerAgent")
-        super().__init__(agent_name, initial_balance)
+        super().__init__(agent_name, initial_balance, register_with_portfolio=register_with_portfolio)
         self.min_balance_pct = float(os.getenv("MANAGER_MIN_BALANCE_PCT", "0.05"))
         self.max_bet_pct = float(os.getenv("MANAGER_MAX_BET_PCT", "0.35"))
         self.default_bet_pct = float(os.getenv("MANAGER_DEFAULT_BET_PCT", "0.18"))
@@ -52,12 +52,13 @@ class ManagerAgent(BaseAgent):
             "bet_pct": bet_pct,
         }
 
-        return {
+        proposal = {
             "token_id": token_id,
             "side": best_signal.side,
             "amount": amount,
             "price": float(price),
         }
+        return self.manage_with_llm(market, proposal, "Manager Agent")
 
     def should_continue(self) -> bool:
         return self.current_balance >= self.initial_balance * self.min_balance_pct

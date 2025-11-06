@@ -37,8 +37,9 @@ class AgentTool:
 
     def _get_agent(self, initial_balance: float):
         if self._agent is None:
-            self._agent = self._agent_cls(initial_balance=initial_balance)
+            self._agent = self._agent_cls(initial_balance=0.0, register_with_portfolio=False)
             self._agent.logger.disabled = True
+        self._agent.initial_balance = max(1e-6, initial_balance)
         self._agent.current_balance = initial_balance
         return self._agent
 

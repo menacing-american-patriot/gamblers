@@ -21,6 +21,8 @@ class OllamaClient:
         self.timeout = float(timeout_env)
         self.api_key = api_key or os.getenv("LLM_API_KEY")
         self.temperature = os.getenv("LLM_TEMPERATURE") or os.getenv("OLLAMA_TEMPERATURE")
+        self.provider = (os.getenv("LLM_PROVIDER") or "ollama").lower()
+        self.force_json = (os.getenv("LLM_FORCE_JSON", "true").lower() in {"1", "true", "yes"})
 
     def _headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json"}
@@ -35,11 +37,21 @@ class OllamaClient:
         messages.append({"role": "user", "content": prompt})
         return messages
 
-    def generate(self, prompt: str, system: str = None, max_tokens: int = None) -> str:
+    def generate(
+        self,
+        prompt: str,
+        system: str = None,
+        max_tokens: int = None,
+        model_override: Optional[str] = None,
+    ) -> str:
+        model_to_use = model_override or self.model
         payload: Dict[str, Any] = {
-            "model": self.model,
+            "model": model_to_use,
             "messages": self._build_messages(prompt, system),
         }
+
+        if self.force_json and self.provider == "ollama":
+            payload["format"] = "json"
 
         if self.temperature is not None:
             payload["temperature"] = float(self.temperature)

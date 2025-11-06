@@ -76,6 +76,12 @@ A collection of AI agents that autonomously trade on Polymarket with different s
     - Bet size: Uses LLM-suggested percentage capped between 1% and 90%
     - Risk level: Depends on chosen model and prompt tuning
 
+12. **Manager Agent** 🧭
+    - Strategy: Acts as an orchestrator that queries the other strategy tools, scores their suggestions, and deploys capital to the strongest signal
+    - Maintains shared memory of tool performance to adapt bet sizing and kill weak ideas
+    - Bet size: 18% default (configurable) with caps based on confidence and portfolio state
+    - Risk level: Medium-High (follows ensemble guidance but still aggressive)
+
 ## 🚀 Setup
 
 1. Create and activate a virtual environment:
@@ -104,11 +110,16 @@ Edit `.env` and add:
 - `PRIVATE_KEY`: Your Ethereum private key (used for signing orders)
 - `POLYGON_RPC_URL`: Polygon RPC endpoint (default: https://polygon-rpc.com)
 - `POLY_API_KEY`, `POLY_API_SECRET`, `POLY_API_PASSPHRASE`: Level-2 Polymarket CLOB API credentials. These are required to actually submit orders; without them the agents will remain in read-only mode. You can create/derive these keys from the Polymarket dashboard or via the official py-clob-client tooling (see [Polymarket docs](https://docs.polymarket.com/)).
+- `PORTFOLIO_STARTING_CASH`: Total treasury for the shared portfolio (default 100 USDC). Each agent draws from this, and profits recycle back into the pool.
 
-4. (Optional) Enable the LLM agent:
-   - Install [Ollama](https://ollama.com/) locally and run `ollama pull llama3.1` (or any supported model)
-   - Set `OLLAMA_MODEL` in `.env` along with optional `OLLAMA_HOST`, `OLLAMA_TIMEOUT`, `OLLAMA_TEMPERATURE`, `OLLAMA_BET_PCT`, `OLLAMA_MIN_CONFIDENCE`, `OLLAMA_MAX_TOKENS`
-   - Start the Ollama server (`ollama serve`) so the agent can reach `http://localhost:11434`
+4. (Optional) Enable LLM-driven agents:
+   - Install [Ollama](https://ollama.com/) locally (or point to any OpenAI-compatible endpoint)
+   - Pull a model, e.g. `ollama pull llama3.1`
+   - Set `LLM_BASE_URL`, `LLM_MODEL`, and optional `LLM_API_KEY`, `LLM_TIMEOUT`, `LLM_TEMPERATURE` in `.env`
+   - Tune the LLM layer with `OLLAMA_BET_PCT`, `OLLAMA_MIN_CONFIDENCE`, `OLLAMA_MAX_TOKENS`
+   - If you are using Ollama, leave `LLM_PROVIDER=ollama` and `LLM_FORCE_JSON=true` so the model returns strict JSON; set `LLM_FORCE_JSON=false` if your endpoint doesn’t support the `format=json` flag.
+   - To enable the hive-mind coordinator, provide `HIVEMIND_COORDINATOR_MODEL` plus a comma-separated `HIVEMIND_SPECIALIST_MODELS` list; the coordinator will consult each specialist model in parallel and only execute if the committee approves.
+   - Start the Ollama server (`ollama serve`) so the agent can reach your endpoint
 
 5. Fund your wallet:
    - Make sure your Ethereum address has USDC on Polygon network
@@ -129,13 +140,33 @@ source venv/bin/activate  # Linux/Mac
 python run_agents.py
 ```
 
+### Interactive TUI dashboard
+
+If you prefer a real-time dashboard with start/stop controls, launch the curses-based interface:
+
+```bash
+python tui.py --balance 5 --iterations 200 --sleep 15
+```
+
+Key bindings: `↑/↓` move selection, `Enter` or `S` start selected agent, `P` pause selected, `A` start all, `X` stop all, `Q` quit. The TUI reads the shared memory store, so it reflects live balances, positions, and last trades (note: on Windows the standard `curses` module requires WSL or Python 3.8+).
+
+### Multi-agent swarm coordinator
+
+For a fully managed, capital-sharing swarm that ranks proposals from every strategy each round, run:
+
+```bash
+python swarm.py --balance 5 --iterations 300 --sleep 15 --markets 40 --per-agent 6
+```
+
+The swarm uses a single treasury, scores each agent’s trade proposals, executes the highest conviction plays, and records performance in the shared memory store (viewable via the TUI or logs).
+
 You'll be prompted for:
 - Initial balance per agent (default: $10)
 - Max trading iterations (default: 50)
 - Sleep time between rounds (default: 30s)
 
 The script will:
-- Deploy all 5 agents in parallel
+- Deploy the selected agents in parallel
 - Each agent trades independently with its own strategy
 - Show real-time progress and final results
 - Save detailed results to `results_TIMESTAMP.json`
@@ -189,6 +220,11 @@ Add it to `agents/__init__.py` and include it in `run_agents.py`.
 - All transactions are logged for audit purposes
 - Results are saved with timestamp for tracking performance over time
 - If the Polymarket API credentials are missing or invalid, the agents will log a warning and skip order placement while still evaluating markets.
-- The LLM Decision Agent requires a reachable Ollama instance and an `OLLAMA_MODEL`; otherwise it is skipped automatically.
+- The LLM Decision Agent and Manager Agent use the shared tool framework; they require a reachable LLM endpoint and will fall back gracefully if `LLM_MODEL` is unset.
+- A shared memory store keeps track of balances, positions, and tool scores so orchestrators can avoid selling unowned shares and adapt to past performance.
+- The TUI (`tui.py`) can monitor and control agents in real time; it relies on the same memory store and runner services used by the CLI.
+- The swarm coordinator (`swarm.py`) manages a shared treasury, ranks strategy proposals, and seeks to maximize profit across the entire portfolio rather than per-agent silos.
+- Every strategy now routes its heuristic proposal through the LLM manager (when configured), allowing the model to approve, tweak, or veto trades before they hit the CLOB.
+- Setting `HIVEMIND_COORDINATOR_MODEL` and `HIVEMIND_SPECIALIST_MODELS` activates a multi-model hive mind: fast specialists produce draft trades, a coordinator model arbitrates, and the final order is executed only if the consensus passes risk checks.
 
 Good luck and may the odds be ever in your favor! 🍀

@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 import random
 
 class WhaleFollower(BaseAgent):
-    def __init__(self, name: str = "WhaleFollower", initial_balance: float = 10.0):
-        super().__init__(name, initial_balance)
+    def __init__(self, name: str = "WhaleFollower", initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__(name, initial_balance, register_with_portfolio=register_with_portfolio)
         self.whale_trades = {}  # Track large trades per market
         self.whale_threshold = 50000  # $50k+ considered whale
         self.insider_indicators = {}  # Track suspicious patterns
@@ -202,7 +202,7 @@ class WhaleFollower(BaseAgent):
             if insider_confidence > 0.5:
                 self.logger.info(f"   🎯 POTENTIAL INSIDER: Confidence {insider_confidence:.2f}")
             
-            self.logger.info(f"   Following {direction} with ${amount:.2f} "
+            self.logger.info(f"   Considering {direction} with proposed ${amount:.2f} "
                            f"({bet_percentage*100:.1f}% of balance)")
             
             # Update tracking
@@ -220,12 +220,13 @@ class WhaleFollower(BaseAgent):
             if successful_follows > 3:
                 self.confidence_multiplier = min(self.confidence_multiplier * 1.1, 2.0)
             
-            return {
+            proposal = {
                 "token_id": token_id,
                 "side": direction,
                 "amount": amount * self.confidence_multiplier,
                 "price": price
             }
+            return self.manage_with_llm(market, proposal, "Whale Follower")
             
         except Exception as e:
             self.logger.error(f"Whale analysis error: {e}")

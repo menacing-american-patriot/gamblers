@@ -7,12 +7,13 @@ from base_agent import BaseAgent
 
 class ValueHunter(BaseAgent):
     """
-    Value Hunter: Looks for mispriced markets and exploits them.
+        proposal = {
     Strategy: Finds markets with extreme probabilities and bets against them.
     """
     
-    def __init__(self, initial_balance: float = 10.0):
-        super().__init__("Value_Hunter", initial_balance)
+    def __init__(self, initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__("Value_Hunter", initial_balance, register_with_portfolio=register_with_portfolio)
+        return self.manage_with_llm(market, proposal, "Value Hunter")
         self.min_balance_threshold = 1.0
         self.bet_percentage = 0.15
         self.value_threshold = 0.1

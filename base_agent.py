@@ -1,9 +1,11 @@
+import json
 import os
 import time
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional
 
-from core import execution_service, market_data_service, memory_store, settings
+from core import execution_service, hivemind, market_data_service, memory_store, portfolio, settings
+from core.hivemind import FALLBACK_FLAG
 from core.logging import get_logger
 from ollama_client import OllamaClient
 
@@ -17,10 +19,12 @@ class BaseAgent(ABC):
         market_service=None,
         execution=None,
         memory=None,
+        register_with_portfolio: bool = True,
     ):
         self.name = name
-        self.initial_balance = initial_balance
-        self.current_balance = initial_balance
+        self.requested_balance = float(initial_balance)
+        self.initial_balance = 0.0
+        self.current_balance = 0.0
         self.trades_made = 0
         self.winning_trades = 0
         self.losing_trades = 0
@@ -29,11 +33,47 @@ class BaseAgent(ABC):
         self.market_service = market_service or market_data_service()
         self.execution_service = execution or execution_service()
         self.memory_store = memory or memory_store()
+        self.portfolio = portfolio() if register_with_portfolio else None
+        self.hivemind = hivemind()
+
+        if self.portfolio is not None:
+            allocated = self.portfolio.register_agent(self.name, self.requested_balance)
+            self.initial_balance = allocated
+            self.current_balance = allocated
+        else:
+            allocated = self.requested_balance
+            self.initial_balance = self.requested_balance
+            self.current_balance = self.requested_balance
 
         self.logger = get_logger(name)
 
         self._creds_warning_emitted = False
         self._ollama_client: Optional[OllamaClient] = None
+        self._stop_requested = False
+
+        agent_memory = self.memory_store.get_agent_memory(self.name)
+        agent_memory.setdefault("allocation", allocated)
+        agent_memory.setdefault("status", "initialized")
+        agent_memory.setdefault("positions", {})
+        agent_memory.setdefault("stats", [])
+
+        if register_with_portfolio and allocated + 1e-9 < self.requested_balance:
+            self.logger.warning(
+                f"Allocated ${allocated:.2f} of requested ${self.requested_balance:.2f} due to treasury limits"
+            )
+
+        memory_positions = agent_memory.get("positions", {})
+        if memory_positions and self.portfolio is not None:
+            self.portfolio.reconcile_positions(self.name, memory_positions)
+
+    def _reconcile_positions(self):
+        if self.portfolio is None:
+            return
+        memory = self.memory_store.get_agent_memory(self.name)
+        positions = memory.get("positions", {})
+        if not positions:
+            return
+        self.portfolio.reconcile_positions(self.name, positions)
 
     def get_active_markets(self, limit: int = 100) -> List[Dict]:
         return self.market_service.get_active_markets(limit=limit, logger=self.logger)
@@ -65,35 +105,35 @@ class BaseAgent(ABC):
             if side_normalized not in {"BUY", "SELL"}:
                 self.logger.warning(f"Unknown side '{side}' supplied; skipping trade")
                 return False
+            if self.portfolio is None:
+                self.logger.error("Portfolio not available for trading agent")
+                return False
 
-            if side_normalized == "BUY" and amount > self.current_balance:
+            validation = self.portfolio.validate_trade(
+                agent_name=self.name,
+                token_id=token_id,
+                side=side_normalized,
+                amount=amount,
+                price=price,
+            )
+            if not validation.success:
                 self.logger.warning(
-                    f"Insufficient balance for bet: ${amount:.2f} > ${self.current_balance:.2f}"
+                    f"Trade rejected: {validation.message} (token {token_id[:8]}, side {side_normalized}, amount {amount:.4f}, price {price})"
                 )
                 return False
             if amount <= 0:
                 self.logger.warning("Bet amount must be positive")
+                return False
+            if amount < 1.0:
+                self.logger.info(
+                    f"Skipping trade below $1 minimum (amount={amount:.2f}, side={side_normalized}, token={token_id[:8]})"
+                )
                 return False
             if price is None or not (0.001 <= price <= 0.999):
                 self.logger.warning(f"Skipping bet due to out-of-range price: {price}")
                 return False
 
             agent_memory = self.memory_store.get_agent_memory(self.name)
-            positions: Dict[str, float] = agent_memory.setdefault("positions", {})
-            shares = amount / price
-
-            current_shares = positions.get(token_id, 0.0)
-            if side_normalized == "SELL":
-                if current_shares <= 1e-9:
-                    self.logger.warning(
-                        f"Cannot SELL {token_id[:8]} – no existing position"
-                    )
-                    return False
-                if current_shares + 1e-9 < shares:
-                    self.logger.warning(
-                        f"Cannot SELL {shares:.4f} shares of {token_id[:8]} – holdings only {current_shares:.4f}"
-                    )
-                    return False
 
             if self.execution_service.place_order(
                 token_id=token_id,
@@ -102,27 +142,37 @@ class BaseAgent(ABC):
                 price=price,
                 logger=self.logger,
             ):
-                if side_normalized == "BUY":
-                    self.current_balance -= amount
-                    positions[token_id] = current_shares + shares
-                else:
-                    self.current_balance += amount
-                    positions[token_id] = max(0.0, current_shares - shares)
+                new_balance = self.portfolio.apply_trade(
+                    agent_name=self.name,
+                    token_id=token_id,
+                    side=side_normalized,
+                    amount=amount,
+                    price=price,
+                )
+                self.current_balance = new_balance
+                positions = self.portfolio.get_agent_positions(self.name)
+                agent_memory["positions"] = positions
+                shares = amount / price if price else 0.0
                 agent_memory["last_trade"] = {
                     "token_id": token_id,
                     "side": side_normalized,
                     "amount": amount,
                     "price": price,
                     "shares": shares,
+                    "timestamp": time.time(),
                 }
                 self.trades_made += 1
                 return True
             return False
         except Exception as e:
             self.logger.error(f"Error placing bet: {e}")
+            agent_memory = self.memory_store.get_agent_memory(self.name)
+            agent_memory["last_error"] = str(e)
             return False
     
     def get_stats(self) -> Dict:
+        if self.portfolio is not None:
+            self.current_balance = self.portfolio.get_agent_balance(self.name)
         profit = self.current_balance - self.initial_balance
         roi = (profit / self.initial_balance * 100) if self.initial_balance > 0 else 0
         
@@ -159,7 +209,17 @@ class BaseAgent(ABC):
         pass
     
     def run(self, max_iterations: int = 50, sleep_time: int = 30):
-        self.logger.info(f"🚀 {self.name} starting with ${self.initial_balance:.2f}")
+        if self.portfolio is not None:
+            self.current_balance = self.portfolio.get_agent_balance(self.name)
+        self.logger.info(f"🚀 {self.name} starting with ${self.current_balance:.2f}")
+        self._stop_requested = False
+        agent_memory = self.memory_store.get_agent_memory(self.name)
+        agent_memory["status"] = "running"
+        agent_memory["iterations"] = 0
+        self._reconcile_positions()
+        positions_snapshot = agent_memory.get("positions", {})
+        if positions_snapshot:
+            self.logger.info(f"📦 Loaded existing positions: {positions_snapshot}")
         if not self.execution_service.trading_enabled and not self._creds_warning_emitted:
             self.logger.warning(
                 "API credentials not configured; agent will operate in read-only mode without placing orders"
@@ -168,7 +228,12 @@ class BaseAgent(ABC):
         
         iteration = 0
         while iteration < max_iterations and self.should_continue():
+            if self._stop_requested:
+                self.logger.info(f"⏹ {self.name} stop requested")
+                break
             try:
+                if self.portfolio is not None:
+                    self.current_balance = self.portfolio.get_agent_balance(self.name)
                 markets = self.get_active_markets()
                 if not markets:
                     self.logger.warning("No active markets found")
@@ -190,6 +255,7 @@ class BaseAgent(ABC):
                         time.sleep(2)
                 
                 self.log_stats()
+                agent_memory["iterations"] = iteration
                 iteration += 1
                 
                 if iteration < max_iterations and self.should_continue():
@@ -197,11 +263,16 @@ class BaseAgent(ABC):
                     
             except Exception as e:
                 self.logger.error(f"Error in main loop: {e}")
+                agent_memory["last_error"] = str(e)
                 time.sleep(sleep_time)
         
         self.logger.info(f"🏁 {self.name} finished")
         self.log_stats()
+        agent_memory["status"] = "stopped"
         return self.get_stats()
+
+    def request_stop(self):
+        self._stop_requested = True
 
     def get_ollama_client(self) -> Optional[OllamaClient]:
         if self._ollama_client is not None:
@@ -222,3 +293,123 @@ class BaseAgent(ABC):
             self.logger.error(f"Failed to initialize Ollama client: {exc}")
             self._ollama_client = None
             return None
+
+    def manage_with_llm(self, market: Dict, proposal: Dict, tool_name: str) -> Optional[Dict]:
+        if not proposal:
+            return None
+
+        memory = self.memory_store.get_agent_memory(self.name)
+        positions = memory.get("positions", {})
+        token_id = proposal.get("token_id", "")
+        available_shares = positions.get(token_id, 0.0)
+
+        if proposal.get("side", "").upper() == "SELL" and available_shares <= 1e-9:
+            self.logger.info(
+                f"Skipping SELL proposal from {tool_name} on {token_id[:8]} - no position held"
+            )
+            return None
+
+        context = {
+            "positions": positions,
+            "balance": self.current_balance,
+        }
+
+        if self.hivemind and getattr(self.hivemind, "enabled", False):
+            decision = self.hivemind.collaborative_decision(
+                agent_name=self.name,
+                market=market,
+                proposal=proposal,
+                context=context,
+            )
+            if decision is None:
+                return None
+            if isinstance(decision, dict) and decision.get(FALLBACK_FLAG):
+                self.logger.debug("Hivemind fallback triggered; deferring to local LLM")
+            else:
+                return decision
+
+        client = self.get_ollama_client()
+        if not client:
+            return proposal
+
+        payload = {
+            "agent": self.name,
+            "tool": tool_name,
+            "proposal": proposal,
+            "portfolio_balance": self.current_balance,
+            "positions": positions,
+            "available_shares": available_shares,
+            "market": {
+                "question": market.get("question"),
+                "outcome": market.get("outcome"),
+                "price": market.get("price"),
+                "best_bid": market.get("best_bid"),
+                "best_ask": market.get("best_ask"),
+                "volume": market.get("volume"),
+                "liquidity": market.get("liquidity"),
+                "category": market.get("category"),
+            },
+        }
+
+        system_prompt = (
+            "You are the decision layer for a trading agent on Polymarket. "
+            "Assess the tool proposal and decide to EXECUTE or SKIP. If executing, you may adjust side, amount, or price but keep them within valid bounds (0 < price < 1, amount >= 0). "
+            "NEVER approve a SELL when available_shares <= 0, and never increase amount beyond available_shares * price for sells. You cannot sell shares you have not bought!"
+            "Respond with compact JSON: {\"action\": \"EXECUTE\"|\"SKIP\", \"side\": ..., \"amount\": ..., \"price\": ..., \"reasoning\": ...}."
+        )
+
+        prompt = (
+            "Tool proposal:\n"
+            f"{json.dumps(payload, ensure_ascii=False)}\n"
+            "Return JSON only."
+        )
+
+        try:
+            response = client.generate(prompt, system=system_prompt, max_tokens=256)
+        except Exception as exc:
+            self.logger.error(f"LLM decision failed: {exc}")
+            return proposal
+
+        data = None
+        try:
+            start = response.find("{")
+            end = response.rfind("}")
+            if start != -1 and end != -1:
+                data = json.loads(response[start : end + 1])
+        except Exception:
+            data = None
+
+        if data is None:
+            force_json = os.getenv("LLM_FORCE_JSON", "true").lower() in {"1", "true", "yes"}
+            if force_json:
+                self.logger.error(f"Failed to parse LLM response in strict mode. Raw: {response[:120]}...")
+                return proposal
+            self.logger.debug(
+                "LLM returned non-JSON response in tolerant mode; using original proposal"
+            )
+            return proposal
+
+        action = str(data.get("action", "")).upper()
+        if action != "EXECUTE":
+            self.logger.info(f"LLM vetoed proposal from {tool_name}")
+            return None
+
+        updated = dict(proposal)
+        if "side" in data and data["side"]:
+            updated["side"] = str(data["side"]).upper()
+        if "price" in data and data["price"] is not None:
+            try:
+                updated["price"] = float(data["price"])
+            except (TypeError, ValueError):
+                pass
+        if "amount" in data and data["amount"] is not None:
+            try:
+                updated["amount"] = max(0.0, float(data["amount"]))
+            except (TypeError, ValueError):
+                pass
+
+        reasoning = data.get("reasoning")
+        if reasoning:
+            self.logger.info(f"LLM reasoning ({tool_name}): {reasoning}")
+
+        return updated

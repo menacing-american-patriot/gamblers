@@ -2,14 +2,14 @@
 High-Frequency Scalper - Makes rapid small trades to exploit micro price movements
 Targets quick profits through volume rather than large bets
 """
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 from base_agent import BaseAgent
 import random
 from collections import deque
 
 class Scalper(BaseAgent):
-    def __init__(self, name: str = "Scalper", initial_balance: float = 10.0):
-        super().__init__(name, initial_balance)
+    def __init__(self, name: str = "Scalper", initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__(name, initial_balance, register_with_portfolio=register_with_portfolio)
         self.price_history = {}  # Track micro movements
         self.trade_queue = deque(maxlen=20)  # Recent trades
         self.base_bet_percentage = 0.15  # Smaller bets, more frequent
@@ -200,12 +200,13 @@ class Scalper(BaseAgent):
             elif 'reversal' in pattern:
                 self.reversal_trades += 1
             
-            return {
+            proposal = {
                 "token_id": token_id,
                 "side": side,
                 "amount": amount,
                 "price": price
             }
+            return self.manage_with_llm(market, proposal, "Scalper")
             
         except Exception as e:
             self.logger.error(f"Scalping error: {e}")

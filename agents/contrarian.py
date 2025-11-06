@@ -11,8 +11,8 @@ class Contrarian(BaseAgent):
     Strategy: When everyone zigs, this agent zags. Fades the public.
     """
     
-    def __init__(self, initial_balance: float = 10.0):
-        super().__init__("Contrarian", initial_balance)
+    def __init__(self, initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__("Contrarian", initial_balance, register_with_portfolio=register_with_portfolio)
         self.min_balance_threshold = 1.0
         self.bet_percentage = 0.18
         self.consensus_threshold = 0.70
@@ -43,12 +43,13 @@ class Contrarian(BaseAgent):
                 self.logger.info(f"🔄 Contrarian bet: {market.get('question', 'Unknown')[:60]}... | "
                                f"${bet_amount:.2f} SELL @ {target_price:.3f} (fading {current_price:.3f})")
                 
-                return {
+                proposal = {
                     "token_id": token_id,
                     "side": "SELL",
                     "amount": bet_amount,
                     "price": target_price
                 }
+                return self.manage_with_llm(market, proposal, "Contrarian Fade")
             
             elif current_price < (1 - self.consensus_threshold) and current_price > 0.05:
                 bet_amount = self.current_balance * self.bet_percentage
@@ -59,12 +60,13 @@ class Contrarian(BaseAgent):
                 self.logger.info(f"🔄 Contrarian bet: {market.get('question', 'Unknown')[:60]}... | "
                                f"${bet_amount:.2f} BUY @ {target_price:.3f} (fading {current_price:.3f})")
                 
-                return {
+                proposal = {
                     "token_id": token_id,
                     "side": "BUY",
                     "amount": bet_amount,
                     "price": target_price
                 }
+                return self.manage_with_llm(market, proposal, "Contrarian Fade")
         
         return None
     

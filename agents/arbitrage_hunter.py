@@ -7,8 +7,8 @@ from base_agent import BaseAgent
 import random
 
 class ArbitrageHunter(BaseAgent):
-    def __init__(self, name: str = "ArbitrageHunter", initial_balance: float = 10.0):
-        super().__init__(name, initial_balance)
+    def __init__(self, name: str = "ArbitrageHunter", initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__(name, initial_balance, register_with_portfolio=register_with_portfolio)
         self.market_cache = {}
         self.correlation_map = {}
         self.base_bet_percentage = 0.35  # Aggressive when arbitrage found
@@ -224,12 +224,13 @@ class ArbitrageHunter(BaseAgent):
                                f"{market.get('question', '')[:40]}... | "
                                f"Confidence: {best_opportunity['confidence']:.2f}")
                 
-                return {
+                proposal = {
                     "token_id": token_id,
                     "side": best_opportunity['side'],
                     "amount": amount,
                     "price": best_opportunity['price']
                 }
+                return self.manage_with_llm(market, proposal, "Arbitrage Hunter")
             
             return None
             

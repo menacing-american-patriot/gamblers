@@ -8,8 +8,8 @@ from typing import Dict, Optional, List
 from base_agent import BaseAgent
 
 class NeuralPredictor(BaseAgent):
-    def __init__(self, name: str = "NeuralPredictor", initial_balance: float = 10.0):
-        super().__init__(name, initial_balance)
+    def __init__(self, name: str = "NeuralPredictor", initial_balance: float = 10.0, register_with_portfolio: bool = True):
+        super().__init__(name, initial_balance, register_with_portfolio=register_with_portfolio)
         self.market_memory = {}  # Store market patterns
         self.success_weights = {}  # Track which patterns work
         self.confidence_threshold = 0.65
@@ -165,14 +165,15 @@ class NeuralPredictor(BaseAgent):
                 amount *= 1.5  # 50% boost for high confidence
             
             self.logger.info(f"🧠 Neural analysis: {market.get('question', '')[:50]}... "
-                           f"Confidence: {confidence:.2f}, Bet size: {bet_percentage:.1%}")
+                           f"Confidence: {confidence:.2f}, Proposed bet: {bet_percentage:.1%}")
             
-            return {
+            proposal = {
                 "token_id": token_id,
                 "side": side,
                 "amount": amount,
                 "price": price
             }
+            return self.manage_with_llm(market, proposal, "Neural Predictor")
             
         except Exception as e:
             self.logger.error(f"Analysis error: {e}")
